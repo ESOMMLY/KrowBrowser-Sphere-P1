@@ -9,15 +9,93 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-      - name: Extract ZIP
+      - name: Create full Android project
         run: |
-          unzip -o *.zip
-          ls -la
+          mkdir -p app/src/main/java/com/krow/browser
+          mkdir -p app/src/main/res/layout
+          mkdir -p gradle/wrapper
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <application android:allowBackup="true" android:label="KrowBrowser" android:theme="@android:style/Theme.NoTitleBar">
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+          cat > app/src/main/res/layout/activity_main.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="match_parent">
+           <LinearLayout android:orientation="horizontal" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="8dp" android:background="#111111">
+             <EditText android:id="@+id/urlBar" android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" android:hint="Search or enter URL" android:background="#333333" android:textColor="#ffffff" android:hintTextColor="#888888" android:padding="12dp"/>
+             <Button android:id="@+id/goBtn" android:layout_width="wrap_content" android:layout_height="48dp" android:text="Go"/>
+           </LinearLayout>
+           <WebView android:id="@+id/webView" android:layout_width="match_parent" android:layout_height="match_parent"/>
+          </LinearLayout>
+          EOF
+          cat > app/src/main/java/com/krow/browser/MainActivity.kt <<'EOF'
+          package com.krow.browser
+          import android.os.Bundle
+          import android.webkit.WebView
+          import android.webkit.WebViewClient
+          import android.widget.Button
+          import android.widget.EditText
+          import androidx.appcompat.app.AppCompatActivity
+          class MainActivity : AppCompatActivity() {
+              private lateinit var webView: WebView
+              private lateinit var urlBar: EditText
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContentView(R.layout.activity_main)
+                  webView = findViewById(R.id.webView)
+                  urlBar = findViewById(R.id.urlBar)
+                  val goBtn = findViewById<Button>(R.id.goBtn)
+                  webView.settings.javaScriptEnabled = true
+                  webView.webViewClient = WebViewClient()
+                  webView.loadUrl("https://www.google.com")
+                  goBtn.setOnClickListener {
+                      var url = urlBar.text.toString().trim()
+                      if (url.isEmpty()) return@setOnClickListener
+                      if (!url.startsWith("http")) {
+                          url = if (url.contains(".")) "https://$url" else "https://www.google.com/search?q=$url"
+                      }
+                      webView.loadUrl(url)
+                  }
+              }
+          }
+          EOF
+          cat > settings.gradle <<'EOF'
+          include ':app'
+          EOF
+          cat > build.gradle <<'EOF'
+          // Top-level
+          EOF
+          cat > app/build.gradle <<'EOF'
+          plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
+          android {
+           namespace 'com.krow.browser'
+           compileSdk 34
+           defaultConfig { applicationId "com.krow.browser"; minSdk 24; targetSdk 34; versionCode 1; versionName "1.0 Sphere P1" }
+           compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+           kotlinOptions { jvmTarget = '17' }
+          }
+          dependencies { implementation "androidx.appcompat:appcompat:1.6.1"; implementation "androidx.core:core-ktx:1.12.0" }
+          EOF
+          cat > gradle/wrapper/gradle-wrapper.properties <<'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+          ls -R
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: 8.4
       - name: Build APK
-        run: gradle assembleDebug
+        run: gradle assembleDebug --stacktrace
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
